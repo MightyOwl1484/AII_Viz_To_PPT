@@ -1,0 +1,122 @@
+Sub ExportChartsToPowerPoint()
+    Dim pptApp As Object
+    Dim pptPres As Object
+    Dim pptSlide As Object
+    Dim ws As Worksheet
+    Dim chartObj As ChartObject
+    Dim destWB As Workbook
+    Dim pptTemplate As String
+    Dim pptSlideCount As Integer
+    Dim chartFound As Boolean
+    Dim pastedShape As Object
+    Dim i As Integer
+    Dim retryCount As Integer
+    
+    ' Define chart size and position in points
+    Const chartWidth As Single = 351.36 ' 4.88 inches
+    Const chartHeight As Single = 200.16 ' 2.78 inches
+    Const chartLeft As Single = 360 ' 5 inches
+    Const chartTop As Single = 89.28 ' 1.24 inches
+    
+    ' Path to the PowerPoint template
+    pptTemplate = "C:\Users\dave2\OneDrive\Desktop\N980L - Aircraft Inventory - AII Viz.ppt"
+    
+    ' Open the PowerPoint application
+    Set pptApp = CreateObject("PowerPoint.Application")
+    pptApp.Visible = True
+    
+    ' Open the PowerPoint presentation
+    Set pptPres = pptApp.Presentations.Open(pptTemplate)
+    
+    ' Get the number of worksheets in the "A-II viz" workbook
+    Set destWB = Workbooks("viz.xlsx")
+    pptSlideCount = destWB.Worksheets.Count
+    
+    ' Duplicate slide 2 for each worksheet
+    For i = 1 To pptSlideCount - 1
+        pptPres.Slides(2).Duplicate
+    Next i
+    
+    ' Loop through each worksheet and copy the chart to the corresponding slide
+    For i = 1 To pptSlideCount
+        Set ws = destWB.Worksheets(i)
+        chartFound = False
+        
+        ' Check if the worksheet has any charts
+        If ws.ChartObjects.Count > 0 Then
+            Set chartObj = ws.ChartObjects(1)
+            chartFound = True
+        End If
+        
+        If chartFound Then
+            ' Copy the chart
+            retryCount = 0
+            On Error Resume Next
+            Do
+                chartObj.Chart.CopyPicture
+                DoEvents ' Allow time for the clipboard to update
+                retryCount = retryCount + 1
+            Loop Until retryCount = 3 Or Err.Number = 0
+            On Error GoTo 0
+            
+            If Err.Number <> 0 Then
+                MsgBox "Failed to copy chart from worksheet: " & ws.Name, vbExclamation
+                Err.Clear
+            Else
+                ' Paste the chart into the PowerPoint slide
+                Set pptSlide = pptPres.Slides(i + 1)
+                On Error Resume Next
+                pptSlide.Shapes.Paste
+                On Error GoTo 0
+                
+                ' Check if the paste was successful
+                If pptSlide.Shapes.Count > 0 Then
+                    ' Get the pasted shape
+                    Set pastedShape = pptSlide.Shapes(pptSlide.Shapes.Count)
+                    
+                    ' Position and size the chart
+                    With pastedShape
+                        .LockAspectRatio = msoFalse
+                        .Width = chartWidth
+                        .Height = chartHeight
+                        .Left = chartLeft
+                        .Top = chartTop
+                        .Rotation = 0
+                    End With
+                Else
+                    MsgBox "Failed to paste chart from worksheet: " & ws.Name, vbExclamation
+                End If
+            End If
+        End If
+    Next i
+    
+    ' Save the PowerPoint presentation
+    On Error Resume Next
+    pptPres.SaveAs "C:\Users\dave2\OneDrive\Desktop\N980L - Aircraft Inventory - AII Viz_Updated.ppt"
+    If Err.Number <> 0 Then
+        MsgBox "Failed to save the PowerPoint presentation.", vbExclamation
+        Err.Clear
+    End If
+    On Error GoTo 0
+    
+    ' Close the PowerPoint presentation
+    On Error Resume Next
+    pptPres.Close
+    If Err.Number <> 0 Then
+        MsgBox "Failed to close the PowerPoint presentation.", vbExclamation
+        Err.Clear
+    End If
+    On Error GoTo 0
+    
+    ' Quit the PowerPoint application
+    pptApp.Quit
+    
+    ' Clean up
+    Set pptSlide = Nothing
+    Set pptPres = Nothing
+    Set pptApp = Nothing
+    Set chartObj = Nothing
+    Set ws = Nothing
+    Set destWB = Nothing
+End Sub
+
